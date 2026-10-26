@@ -1,26 +1,53 @@
-# Shopspace
+# Shadow Workspace — PHP + MySQL
 
-A standalone multi-shop workspace. Requires Node.js 24 or newer. No npm dependencies are needed.
+Admin login, multiple shops, shop workspaces, staff logins assigned to one shop, and a team directory. This is the PHP/MySQL successor to the Node prototype. No Node.js server, npm build, or framework is needed in production.
 
-## Start
+The structure follows Pocket Finance's Hostinger layout: `hostinger-single/` contains PHP entry points, a shared `bootstrap.php`, `database.sql`, a private configuration example, and browser assets. Pocket Finance's financial features and data are not included.
 
-Run `npm start` in this folder and open http://127.0.0.1:4310.
-Create the first admin account on the setup screen. There are no default credentials.
+## Test and debug on GitHub
 
-1. Create as many shops as needed from the Shops panel.
-2. Open a shop and select **Add staff**. Set a name, email, and password.
-3. Share the credentials privately. Staff use the same login page and can only access their assigned shop.
+**Use Codespaces, not GitHub Pages.** Codespaces runs PHP and MariaDB and provides a working browser preview. Pages cannot run PHP or a database.
 
-The first release includes an admin, multiple shops, a team directory, and individual staff accounts. Each staff account belongs to one shop. Business workflows inside shops are intentionally reserved for the next phase.
+1. Extract the release ZIP. Upload its CONTENTS to the root of your repository. Include `.devcontainer`, `.github`, and `.gitignore`; these may be hidden in your file manager. The root should contain this README and `hostinger-single`, not another enclosing folder.
+2. In the repository select **Code → Codespaces → Create codespace on main**. Codespaces usage depends on your GitHub allowance/billing. No Codespace has been created by this package.
+3. Wait for container setup. It provisions PHP 8.3, MariaDB 11.4, initializes the schema without deleting existing records, and starts the website.
+4. Open the **Ports** tab, find **8080 / Shadow Workspace**, and choose **Open in Browser**. Keep port visibility **Private**. The preview URL ends in `app.github.dev`, not `github.io`.
+5. In the Codespaces editor open the ignored `private/shadow-workspace.php` file. Copy its `setup_token` into the website's **Private setup key** field and create your own admin account. There are no preconfigured admin passwords.
+6. Create a shop, open it, and add a staff account. Sign out and test the staff login. Staff see only their assigned shop.
 
-## Data and authentication
+The same application files run in Codespaces and Hostinger. Codespaces keeps its development database in a Docker volume. Stop/start preserves it; deleting the Codespace can delete its database. Export anything you need to keep before deleting a Codespace. The preview is available while the Codespace runs.
 
-SQLite data is in `data/workspace.sqlite`, excluded from source control. Keep this directory to preserve accounts and shops. Use SQLite-aware backups when the application is running. Passwords use salted scrypt hashes. Sessions are random tokens whose hashes are stored server-side; cookies are HttpOnly and SameSite=Strict, with a one-day expiration. API routes enforce admin permissions and staff shop membership. Login attempts are limited per IP.
+### Debugging
 
-`npm test` checks setup, sign-in, duplicate account rejection, shop creation, staff isolation, CSRF origin checks, logout, and persistence across restart using a temporary database.
+- Application log: `.runtime/php.log` (never committed).
+- Restart preview: stop the PHP process and run `bash scripts/start-preview.sh`.
+- Reapply schema safely: `php scripts/migrate.php` (initial tables only; future schema changes require migrations).
+- PHP syntax: `find hostinger-single scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l`.
+- GitHub **Actions → PHP and database checks** runs API/security tests against an isolated MySQL 8 database on pushes and pull requests. Tests never use the Codespaces working database.
+- If Actions are disabled in your account, enable workflows in the repository. The workflow needs the `.github/workflows/php-tests.yml` file in the repository root.
+- For integration tests locally, point the `SW_DB_*` environment variables at a fresh isolated database, set `SW_SETUP_TOKEN`, migrate it, start PHP, then run `php tests/integration.php http://127.0.0.1:8080`. Tests refuse an installation that already has an admin. Do not run against real records.
 
-## Hosting
+## Move to Hostinger when ready
 
-This release runs locally and has not been deployed. A production host must support a persistent Node.js process and persistent SQLite storage. Keep the app bound to loopback behind an HTTPS reverse proxy and set `COOKIE_SECURE=1`. Complete first-admin setup locally before exposing the service. `PORT` and `DATA_DIR` are configurable environment variables. Do not store the database in an ephemeral deployment directory. For production concurrency, use a dedicated persistent data directory rather than a synced OneDrive folder.
+Use a PHP hosting plan with MySQL/MariaDB and PHP 8.3+ (PDO MySQL and mbstring enabled).
 
-Sites hosting uses ChatGPT sign-in, so it was not used for the requested email/password login. Staff on other devices will need the application deployed to an appropriate host. Password reset, account editing/revocation, invitations, multi-shop staff assignment, and business modules are not part of this initial release.
+1. Create a new database and database user in hPanel. Import `hostinger-single/database.sql` via phpMyAdmin for a fresh installation. For a transfer of test data, export your Codespaces database and import that SQL instead. Never upload SQL dumps containing user records to a public repository or web directory.
+2. Upload the CONTENTS of `hostinger-single/` to `public_html/`, including `.htaccess` and `.user.ini`. Do not upload the development scripts, tests, `.devcontainer`, or private database backups.
+3. Copy `config.example.php` to a private file named `private/shadow-workspace.php` next to `public_html/`. Fill in Hostinger's database name/user/password and host. If that location is unavailable, use `public_html/config.php`; the included `.htaccess` denies HTTP access to it. Do not commit either config file.
+4. Set a random private `setup_token` of at least 24 characters. Generate one with `php -r "echo bin2hex(random_bytes(24));"`. Keep `force_https` enabled and enable your SSL certificate.
+5. Visit the domain and create your first admin account using that key. If you imported an existing database, sign in with its existing account instead. Setup is locked once an admin exists.
+6. Check admin login, create/open shop, staff login, denied access to other shops, and logout on the live domain. This hosting verification is still required even though no language conversion is needed.
+
+Only configuration, files, and the SQL database move; business logic does not need rewriting. Relative asset and API paths also support installation under a subfolder.
+
+## Security and data
+
+PHP password hashing, prepared PDO queries, regenerated server-side sessions, CSRF tokens for writes, HTTPS cookies, a persistent login throttle, and server-side admin/shop authorization are included. Only the web port is forwarded from Codespaces; the database has no published port. Development-only database passwords in Compose and CI are not production credentials.
+
+Keep configuration, backups, and real account data out of GitHub even if your repository is private. Data is stored in MySQL/MariaDB, not browser storage or source files.
+
+The previous local Node/SQLite application and its records are preserved separately. This PHP version starts with a new database; its existing users/shops have not been automatically migrated. Old scrypt passwords need a planned migration or password resets before retiring the prototype.
+
+## Current scope
+
+One administrator, multiple shops, and staff assigned to one shop each. Further shop workflows, account editing, password recovery, and multi-shop staff assignment can be added later. This package prepares Codespaces and Hostinger deployment; it does not claim either remote deployment has already been run.

@@ -1,0 +1,10 @@
+.runtime/
+private/
+hostinger-single/config.php
+.env
+.env.*
+!.env.example
+*.log
+*.zip
+*.sqlite*
+node_modules/

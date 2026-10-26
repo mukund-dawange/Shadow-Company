@@ -1,0 +1,2 @@
+<?php require_once __DIR__.'/bootstrap.php'; sw_headers(); ?>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shadow Workspace · Your business, together</title><link rel="stylesheet" href="assets/css/style.css"><script src="assets/js/app.js" defer></script></head><body><div id="app"></div><div id="toast" role="status"></div></body></html>

@@ -1,0 +1,41 @@
+name: PHP and database checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test-root-only
+          MYSQL_DATABASE: shadow_test
+          MYSQL_USER: shadow_test
+          MYSQL_PASSWORD: test-only-password
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-root-only"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      SW_DB_HOST: 127.0.0.1
+      SW_DB_NAME: shadow_test
+      SW_DB_USER: shadow_test
+      SW_DB_PASSWORD: test-only-password
+      SW_SETUP_TOKEN: integration-test-setup-key-only
+      SW_FORCE_HTTPS: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PHP runtime
+        run: php -v && php -m | grep -E 'pdo_mysql|mbstring'
+      - name: Syntax checks
+        run: find hostinger-single scripts tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Initialize database
+        run: php scripts/migrate.php
+      - name: Start PHP
+        run: php -S 127.0.0.1:8080 -t hostinger-single scripts/router.php > /tmp/shadow-php.log 2>&1 &
+      - name: Integration tests
+        run: php tests/integration.php http://127.0.0.1:8080
+      - name: Server logs on failure
+        if: failure()
+        run: cat /tmp/shadow-php.log
