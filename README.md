@@ -2,8 +2,11 @@
 
 HTML, CSS and JavaScript only. No PHP or SQL runs in this repository. The separate Shadow work space folder contains the Hostinger PHP/MySQL application.
 
+## Interface
+The minimal interface uses warm white surfaces, charcoal text, muted green accents and inline line icons. Login pages, admin and shop navigation, inventory, reports, account pages and dialogs share the same design. It adapts to narrow screens; data tables scroll within their own containers. There are no external fonts or icon dependencies.
+
 ## Sign-in and shops
-The main index.html page is for administrators only. Each shop has a separate shop.html?shop=<id> login page showing its own name and a distinct green design. Only its shop account and assigned staff can sign in there; admin accounts and accounts from other shops are rejected. Existing credentials remain unchanged. No passwords or quick-fill credentials appear on either page.
+The main index.html page is for administrators only. Each shop has a separate shop.html?shop=<id> login page showing its own name and its dedicated sign-in screen. Only its shop account and assigned staff can sign in there; admin accounts and accounts from other shops are rejected. Existing credentials remain unchanged. No passwords or quick-fill credentials appear on either page.
 
 The administrator must enter a unique shop login ID and password when creating a shop. Its login link becomes available automatically: open the shop and select **Copy shop login link**. Admin and individual shop sessions are separate, so signing out of one leaves the others signed in. Existing shops without credentials have a **Set shop login** action. Shop credentials open only that shop. Staff accounts remain separate. Only the administrator can create shops/accounts and edit/archive item details. Password reset is not included yet.
 
