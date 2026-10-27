@@ -10,7 +10,7 @@ function shopCredentials(body){const id=String(body.login_id??'').trim().toLower
 const save=db=>localStorage.setItem(KEY,JSON.stringify(db));
 async function read(){
  const raw=localStorage.getItem(KEY);
- if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();if(!db.items){db.items=[];db.events=[];}if(!db.sales)db.sales=[];save(db);return db}catch{fail('Demo data could not be read. Use Reset demo to start again.')}}
+ if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();if(!db.items){db.items=[];db.events=[];}if(!db.sales)db.sales=[];save(db);return db}catch{fail('Demo data could not be read. Ask your administrator to recover this browser’s demo data.')}}
  const passwordHash=await hash('Demo-access-123');
  const db={version:1,users:[
  {id:1,name:'Demo Administrator',email:'admin@shadow.demo',role:'admin',passwordHash},
@@ -32,11 +32,30 @@ async function request(path,body,scopeShop=null){
  const sessionKey=SESSION+(scopeShop===null?'-admin':'-shop-'+scopeShop);
  let user=db.users.find(u=>u.id===Number(sessionStorage.getItem(sessionKey)));
  if(user&&(scopeShop===null?user.role!=='admin':user.role==='admin'||user.shopId!==scopeShop)){sessionStorage.removeItem(sessionKey);user=null;}
- if(path==='session')return {configured:true,user:user?publicUser(user):null,shop:loginShop?{id:loginShop.id,name:loginShop.name}:null};
+ if(path==='session')return {configured:true,user:user?publicUser(user):null,shop:loginShop?{id:loginShop.id,name:loginShop.name}:null,appearance:loginShop?(db.appearances?.[loginShop.id]||null):null};
  if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.identifier??body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Login ID or password is incorrect.');if(scopeShop!==null){if(account.role==='admin'||account.shopId!==scopeShop)fail('This account cannot sign in to this shop. Use your own login page.');}else if(account.role!=='admin')fail('This page is for administrators. Open your shop login link.');sessionStorage.setItem(sessionKey,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
  const scopedRoute=/^shops\/(\d+)(?:\/|$)/.exec(path);if(scopeShop!==null&&scopedRoute&&Number(scopedRoute[1])!==scopeShop)fail('This session belongs to another shop.');
  if(path==='logout'){sessionStorage.removeItem(sessionKey);return {ok:true}}
+ if(path==='admin/demo-data'){
+  if(user.role!=='admin'||scopeShop!==null)fail('Only the admin can add demo data.');
+  if(!body)fail('Method not allowed.');
+  const existing=db.shops.find(s=>s.id===db.demoShopId);if(existing)return {id:existing.id,created:false};
+  const id=Math.max(0,...db.shops.map(s=>s.id))+1;db.shops.push({id,name:'Demo shop',location:'Sample location',description:'Sample inventory and sales for testing. No login accounts are created automatically.'});
+  const products=[['Classic Notebook','DEMO-NOTE','Stationery',85,26,5],['Blue Ballpoint Pen','DEMO-PEN','Stationery',15,6,10],['Canvas Tote','DEMO-TOTE','Accessories',250,13,3],['Steel Bottle','DEMO-BOTTLE','Accessories',450,0,3],['Desk Organiser','DEMO-DESK','Stationery',320,4,5]],ids=[];
+  for(const [name,sku,category,price,quantity,minimum_stock] of products){const itemId=Math.max(0,...db.items.map(i=>i.id))+1;ids.push(itemId);db.items.push({id:itemId,shop_id:id,name,sku,category,price,quantity,minimum_stock,archived:0});db.events.push({item_id:itemId,delta:quantity,reason:'Demo opening stock',actor:user.name,created_at:new Date().toISOString()});}
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  for(const [index,qty,days] of [[0,2,0],[1,3,0],[2,1,1]]){const item=db.items.find(i=>i.id===ids[index]),saleId=Math.max(0,...db.sales.map(s=>s.id))+1,date=new Date(today+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-days);db.sales.push({id:saleId,shop_id:id,item_id:item.id,user_id:user.id,request_key:crypto.randomUUID(),item_name:item.name,sku:item.sku,quantity:qty,unit_price:item.price.toFixed(2),total:(item.price*qty).toFixed(2),sale_date:date.toISOString().slice(0,10),note:'Demo sale',actor:user.name});item.quantity-=qty;db.events.push({item_id:item.id,delta:-qty,reason:'Demo sale',actor:user.name,created_at:new Date().toISOString()});}
+  db.demoShopId=id;save(db);return {id,created:true};
+ }
+ const appearanceRoute=/^shops\/(\d+)\/appearance$/.exec(path);
+ if(appearanceRoute){
+  if(user.role!=='admin'||scopeShop!==null)fail('Only the admin can customise login pages.');
+  const id=Number(appearanceRoute[1]);if(!db.shops.some(s=>s.id===id))fail('Shop not found.');
+  db.appearances??={};
+  if(body){const a={};for(const [field,limit] of Object.entries({page_name:80,headline:120,welcome_message:240})){const value=body[field]??'';if(typeof value!=='string'||Array.from(value.trim()).length>limit)fail('Check the length of your login-page text.');a[field]=value.trim();}a.accent=body.accent??'forest';a.theme=body.theme??'light';if(!['forest','indigo','ocean','rose','amber','graphite'].includes(a.accent)||!['light','dark'].includes(a.theme))fail('Choose a listed colour and appearance.');db.appearances[id]=a;save(db);}
+  return {appearance:db.appearances[id]||{page_name:'',headline:'',welcome_message:'',accent:'forest',theme:'light'}};
+ }
  const salesRoute=/^shops\/(\d+)\/(sales|reports\/([0-9-]+)\/([0-9-]+))$/.exec(path);
  if(salesRoute){
  const shopId=Number(salesRoute[1]);if(!db.shops.some(s=>s.id===shopId))fail('Shop not found.');
@@ -93,7 +112,7 @@ async function request(path,body,scopeShop=null){
  }
  if(body&&user.role!=='admin')fail('Only the admin can make this change.');
  if(path==='shops'){
- if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||(user.shopId===s.id&&s.id===scopeShop)).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id&&u.account_type!=='shop').length}))};
+ if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||(user.shopId===s.id&&s.id===scopeShop)).map(s=>({...s,is_demo:s.id===db.demoShopId,...(user.role==='admin'?{appearance:db.appearances?.[s.id]||null}:{}),staffCount:db.users.filter(u=>u.shopId===s.id&&u.account_type!=='shop').length}))};
  const name=text(body.name,80);if(!name)fail('Shop name is required.');const login=shopCredentials(body);if(db.users.some(u=>u.email===login.id))fail('This login ID is already in use.');const passwordHash=await hash(login.password);const id=Math.max(0,...db.shops.map(s=>s.id))+1;db.shops.push({id,name,location:text(body.location,200),description:text(body.description,1000)});db.users.push({id:Math.max(0,...db.users.map(u=>u.id))+1,name:(name+' shop').slice(0,80),email:login.id,passwordHash,role:'staff',account_type:'shop',shopId:id});save(db);return {id};
  }
  const loginRoute=/^shops\/(\d+)\/login$/.exec(path);
@@ -106,8 +125,6 @@ async function request(path,body,scopeShop=null){
  db.users.push({id:Math.max(...db.users.map(u=>u.id))+1,name,email,passwordHash:await hash(password),role:'staff',shopId:id});save(db);return {ok:true};}
  }fail('Not found.');
 }
-function reset(){localStorage.removeItem(KEY);for(let i=sessionStorage.length-1;i>=0;i--){const key=sessionStorage.key(i);if(key&&key.startsWith(SESSION))sessionStorage.removeItem(key);}}
 let pending=Promise.resolve();
-window.shadowDemo={request:(path,body,scopeShop=null)=>{const result=pending.then(()=>request(path,body,scopeShop));pending=result.catch(()=>{});return result;},reset};
-document.addEventListener('DOMContentLoaded',()=>document.querySelector('#reset-demo')?.addEventListener('click',()=>{if(confirm('Reset this browser’s demo shops and staff accounts?')){reset();location.reload()}}));
+window.shadowDemo={request:(path,body,scopeShop=null)=>{const result=pending.then(()=>request(path,body,scopeShop));pending=result.catch(()=>{});return result;}};
 })();
