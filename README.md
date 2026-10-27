@@ -1,34 +1,21 @@
 # Shadow Workspace — browser demo
 
-HTML, CSS and JavaScript only. No build, PHP, SQL or package installation needed.
+HTML, CSS and JavaScript only. No PHP or SQL runs in this repository. The separate Shadow work space folder contains the Hostinger PHP/MySQL application.
 
-Use **Fill admin login**, then sign in. Create a shop, open it, and add a sample staff account. Sign out and use the **Staff portal** to test that staff account.
+## Sign-in and shops
+There is one blank Login ID or email / Password form for administrators, shop accounts and staff. Portal tabs and visible demo credentials have been removed. Existing demo admin and staff accounts remain unchanged.
 
-Sample accounts (password `Demo-access-123`):
-- Admin: `admin@shadow.demo`
-- Staff at Shadow Central: `staff@shadow.demo`
+The administrator must enter a unique shop login ID and password when creating a shop. Existing shops without credentials have a **Set shop login** action. Shop credentials open only that shop. Staff accounts remain separate. Only the administrator can create shops/accounts and edit/archive item details. Password reset is not included yet.
 
-Data lives only in this browser's local storage. Login lasts for this tab's session. **Reset demo** restores sample accounts and shops. This is simulated authentication, not a security boundary. Do not enter real credentials, personal data or business records.
+Shop IDs accept 3–60 letters, numbers, dots, underscores and hyphens. Passwords use 10–72 bytes. Passwords are not shown after saving. Shop accounts are excluded from staff counts.
 
-## GitHub Desktop / Pages
-Review changes, commit and push to main. In GitHub repository Settings > Pages choose **Deploy from a branch**, branch **main**, folder **/ (root)**. Root index.html is the entry point; all asset paths are relative. The old PHP workflow has been removed because this repository is now static.
+## Inventory Tracker
+Each shop has a unique link such as `#shop/1/inventory`, plus a scrollable left menu for Overview, Items, Stock updates, Sales report, Product sales, Team and My account.
 
-## Separate Hostinger application
-The separate **Shadow work space** folder contains PHP/MySQL production files. Keep the visual design aligned but retain each application's API implementation. Never copy the demo adapter to Hostinger or private config/data into this repository.
+Add items, generate SKU codes, filter/sort inventory, record stock adjustments, inspect history, and record single-product sales that reduce stock. Date-filtered reports show units and revenue by product. Sale prices are preserved when catalog prices change. Sale details are limited to the latest 500 entries; totals include all matching entries. Default dates use IST. Revenue is not profit. Returns, tax invoices, discounts, cancellations and multi-item receipts are future work.
 
-Current scope: shop inventory, item creation/editing/archiving, low-stock alerts, stock adjustments with history, dedicated staff sign-in and staff dashboard, admin/shop sign-in, shop registration, search, shop details, staff accounts, team directory, sign-out. Attendance, salary, and full POS billing remain future modules.
+## Demo limitations
+Data is stored only in this browser. A link does not share custom demo shop records with another browser. Reset demo clears local records and restores sample data. This is simulated authentication; source code and local data can be inspected and changed. Use sample data only. Hiding credentials from the login screen does not turn a public static website into a secure backend. Hostinger PHP/MySQL is the real shared-data version.
 
-Dedicated staff login: append `?portal=staff` to your site URL. Admins can add, edit and archive items; assigned staff can add new items, adjust stock with a reason and view history. Browser data from the earlier demo is upgraded without clearing shops or accounts.
-
-Inventory now includes a visible Add item action on the shop header, automatic SKU generation, category/status filters, sorting, stock summaries and a receive/remove quantity preview. Creating an item clears filters so the saved item is visible. Selling-price stock value is not inventory cost or profit.
-
-
-## Unique shop links and Inventory Tracker
-Use Copy link in the shop list or Copy shop link in a shop. Links use `#shop/<id>/inventory` and open the assigned workspace after sign-in; each section also has its own URL. The demo link works only with shops saved in that browser. Sharing a custom demo shop URL does not share its browser-local records with another person; Hostinger uses the shared database.
-
-The tracker includes Items, Stock updates, Sales report and Product sales. Record sale saves a single-product entry, deducts stock, and logs the adjustment. Reports filter by business date and show sales revenue, units and product totals. Historical sale prices stay unchanged when item prices change. Only assigned staff or admins can record sales. Editing/archiving items remains admin-only.
-
-Default reporting dates use IST. Sale details show the latest 500 matching entries; aggregates cover the whole selected period. Archived products remain in reports. Revenue is not profit. Returns, cancellations, taxes, discounts and multi-item receipts are not included yet. Stock corrections are separate from sales. The static demo simulates these rules; use PHP/MySQL for real shared records.
-
-
-Shop controls now appear in a scrollable left sidebar under the selected shop name. The common login design remains; a shop link adds its shop identifier. Each staff member uses their individual account assigned to that shop. Wrong-shop credentials are rejected before signing in; administrators can use the Admin portal for any existing shop. No shared shop passwords or additional account roles were created. This update adds no database tables; existing installations only need the changed PHP and asset files after the earlier sales schema import.
+## Publishing
+Review changes in GitHub Desktop, commit, then push. GitHub Pages should publish main / root with index.html as its entry point. All asset paths are relative. No build or ZIP is needed.

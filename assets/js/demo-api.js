@@ -2,10 +2,11 @@
 (() => {
 'use strict';
 const KEY='shadow-workspace-demo-v1', SESSION=KEY+'-session';
-const publicUser=({id,name,email,role})=>({id,name,email,role});
+const publicUser=({id,name,email,role,account_type})=>({id,name,email,role,account_type:account_type||role});
 const hash=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))),b=>b.toString(16).padStart(2,'0')).join('');
 const fail=message=>{throw Error(message)};
 const text=(v,n)=>String(v??'').trim().slice(0,n);
+function shopCredentials(body){const id=String(body.login_id??'').trim().toLowerCase(),password=body.login_password;const bytes=typeof password==='string'?new TextEncoder().encode(password).length:0;if(!/^[a-z0-9][a-z0-9._-]{2,59}$/.test(id))fail('Shop login ID must contain 3–60 letters, numbers, dots, underscores or hyphens.');if(bytes<10||bytes>72||password.includes('\0'))fail('Shop password must contain 10–72 bytes.');return {id,password};}
 const save=db=>localStorage.setItem(KEY,JSON.stringify(db));
 async function read(){
  const raw=localStorage.getItem(KEY);
@@ -28,7 +29,7 @@ async function read(){
 async function request(path,body){
  const db=await read(),user=db.users.find(u=>u.id===Number(sessionStorage.getItem(SESSION)));
  if(path==='session')return {configured:true,user:user?publicUser(user):null};
- if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Email or password is incorrect.');if(body.portal&&account.role!==body.portal)fail('Choose the correct portal for your account.');if(Object.hasOwn(body,'shop_id')){const shopId=Number(body.shop_id);if(!Number.isSafeInteger(shopId)||shopId<1||!db.shops.some(s=>s.id===shopId))fail('This shop login link is not valid.');if(account.role!=='admin'&&account.shopId!==shopId)fail('This account is not assigned to this shop. Use your own shop login link.');}sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
+ if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.identifier??body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Login ID or password is incorrect.');if(Object.hasOwn(body,'shop_id')){const shopId=Number(body.shop_id);if(!Number.isSafeInteger(shopId)||shopId<1||!db.shops.some(s=>s.id===shopId))fail('This shop login link is not valid.');if(account.role!=='admin'&&account.shopId!==shopId)fail('This account is not assigned to this shop. Use your own shop login link.');}sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
  if(path==='logout'){sessionStorage.removeItem(SESSION);return {ok:true}}
  const salesRoute=/^shops\/(\d+)\/(sales|reports\/([0-9-]+)\/([0-9-]+))$/.exec(path);
@@ -87,12 +88,14 @@ async function request(path,body){
  }
  if(body&&user.role!=='admin')fail('Only the admin can make this change.');
  if(path==='shops'){
- if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||user.shopId===s.id).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id).length}))};
- const name=text(body.name,80);if(!name)fail('Shop name is required.');const id=Math.max(0,...db.shops.map(s=>s.id))+1;db.shops.push({id,name,location:text(body.location,200),description:text(body.description,1000)});save(db);return {id};
+ if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||user.shopId===s.id).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id&&u.account_type!=='shop').length}))};
+ const name=text(body.name,80);if(!name)fail('Shop name is required.');const login=shopCredentials(body);if(db.users.some(u=>u.email===login.id))fail('This login ID is already in use.');const passwordHash=await hash(login.password);const id=Math.max(0,...db.shops.map(s=>s.id))+1;db.shops.push({id,name,location:text(body.location,200),description:text(body.description,1000)});db.users.push({id:Math.max(0,...db.users.map(u=>u.id))+1,name:(name+' shop').slice(0,80),email:login.id,passwordHash,role:'staff',account_type:'shop',shopId:id});save(db);return {id};
  }
+ const loginRoute=/^shops\/(\d+)\/login$/.exec(path);
+ if(loginRoute&&body){const shopId=Number(loginRoute[1]),shop=db.shops.find(s=>s.id===shopId);if(!shop)fail('Shop not found.');const login=shopCredentials(body);if(db.users.some(u=>u.shopId===shopId&&u.account_type==='shop'))fail('This shop already has login credentials.');if(db.users.some(u=>u.email===login.id))fail('This login ID is already in use.');db.users.push({id:Math.max(0,...db.users.map(u=>u.id))+1,name:(shop.name+' shop').slice(0,80),email:login.id,passwordHash:await hash(login.password),role:'staff',account_type:'shop',shopId});save(db);return {ok:true};}
  const route=/^shops\/(\d+)(\/staff)?$/.exec(path);
  if(route){const id=Number(route[1]),shop=db.shops.find(s=>s.id===id);if(!shop)fail('Shop not found.');if(user.role!=='admin'&&user.shopId!==id)fail('You do not have access to this shop.');
- if(!body&&!route[2])return {shop,staff:db.users.filter(u=>u.shopId===id).map(publicUser)};
+ if(!body&&!route[2])return {shop,shopLogin:user.role==='admin'?(()=>{const a=db.users.find(u=>u.shopId===id&&u.account_type==='shop');return a?{login_id:a.email}:null})():null,staff:db.users.filter(u=>u.shopId===id&&u.account_type!=='shop').map(publicUser)};
  if(body&&route[2]){const name=text(body.name,80),email=text(body.email,254).toLowerCase(),password=String(body.password||''),length=new TextEncoder().encode(password).length;
  if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||length<10||length>72||password.includes('\0'))fail('Enter a name, valid email, and password of 10–72 bytes.');if(db.users.some(u=>u.email===email))fail('This email already has an account. Use a different email.');
  db.users.push({id:Math.max(...db.users.map(u=>u.id))+1,name,email,passwordHash:await hash(password),role:'staff',shopId:id});save(db);return {ok:true};}
