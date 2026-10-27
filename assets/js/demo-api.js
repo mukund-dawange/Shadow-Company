@@ -9,7 +9,7 @@ const text=(v,n)=>String(v??'').trim().slice(0,n);
 const save=db=>localStorage.setItem(KEY,JSON.stringify(db));
 async function read(){
  const raw=localStorage.getItem(KEY);
- if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();return db}catch{fail('Demo data could not be read. Use Reset demo to start again.')}}
+ if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();if(!db.items){db.items=[];db.events=[];save(db)}return db}catch{fail('Demo data could not be read. Use Reset demo to start again.')}}
  const passwordHash=await hash('Demo-access-123');
  const db={version:1,users:[
  {id:1,name:'Demo Administrator',email:'admin@shadow.demo',role:'admin',passwordHash},
@@ -19,7 +19,11 @@ async function read(){
  {id:1,name:'Shadow Central',location:'Pune · Main Street',description:'Our flagship shop and its dedicated team.'},
  {id:2,name:'Shadow Market',location:'Mumbai · Market Road',description:'A neighborhood shop with room to grow.'},
  {id:3,name:'Shadow Studio',location:'Nashik · College Road',description:'Your next location, ready for its first team member.'}
- ]};save(db);return db;
+ ],items:[
+{id:1,shop_id:1,name:'Classic Notebook',sku:'NOTE-001',category:'Stationery',price:85,quantity:24,minimum_stock:5,archived:0},
+{id:2,shop_id:1,name:'Blue Ballpoint Pen',sku:'PEN-001',category:'Stationery',price:15,quantity:3,minimum_stock:10,archived:0},
+{id:3,shop_id:2,name:'Canvas Tote',sku:'BAG-001',category:'Accessories',price:250,quantity:12,minimum_stock:3,archived:0}
+],events:[]};save(db);return db;
 }
 async function request(path,body){
  const db=await read(),user=db.users.find(u=>u.id===Number(sessionStorage.getItem(SESSION)));
@@ -27,6 +31,34 @@ async function request(path,body){
  if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Email or password is incorrect.');if(body.portal&&account.role!==body.portal)fail('Choose the correct portal for your account.');sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
  if(path==='logout'){sessionStorage.removeItem(SESSION);return {ok:true}}
+ const inventory=/^shops\/(\d+)\/items(?:\/(\d+)(?:\/(stock|archive|history))?)?$/.exec(path);
+ if(inventory){
+ const shopId=Number(inventory[1]),itemId=inventory[2]?Number(inventory[2]):null,action=inventory[3]||'';
+ if(!db.shops.some(s=>s.id===shopId))fail('Shop not found.');
+ if(user.role!=='admin'&&user.shopId!==shopId)fail('You do not have access to this shop.');
+ if(!body&&!itemId)return {items:db.items.filter(i=>i.shop_id===shopId&&!i.archived).sort((a,b)=>a.name.localeCompare(b.name))};
+ const item=itemId?db.items.find(i=>i.id===itemId&&i.shop_id===shopId&&!i.archived):null;
+ if(itemId&&!item)fail('Item not found.');
+ if(!body&&action==='history')return {events:db.events.filter(e=>e.item_id===itemId).slice(-50).reverse()};
+ if(!body)fail('Method not allowed.');
+ const whole=v=>/^-?\d+$/.test(String(v))&&Number.isSafeInteger(Number(v));
+ const event=(id,delta,reason)=>db.events.push({item_id:id,delta,reason,actor:user.name,created_at:new Date().toISOString()});
+ if(action==='stock'){
+ const delta=Number(body.delta),reason=text(body.reason,200);
+ if(!whole(body.delta)||delta===0||Math.abs(delta)>1000000||!reason)fail('Enter a nonzero whole-number adjustment and a reason.');
+ const quantity=Number(item.quantity)+delta;if(quantity<0||quantity>1000000)fail('Stock must remain between 0 and 1,000,000 units.');
+ item.quantity=quantity;event(itemId,delta,reason);save(db);return {ok:true};
+ }
+ if(user.role!=='admin')fail('Only the admin can manage item details.');
+ if(action==='archive'){item.archived=1;save(db);return {ok:true}}
+ if(action)fail('Not found.');
+ const name=text(body.name,120),sku=text(body.sku,60).toUpperCase(),category=text(body.category,80),price=String(body.price??''),minimum=Number(body.minimum_stock);
+ if(!name||!sku||!/^\d{1,10}(?:\.\d{1,2})?$/.test(price)||!whole(body.minimum_stock)||minimum<0||minimum>1000000)fail('Enter a name, SKU, valid price and whole-number low-stock threshold.');
+ if(db.items.some(i=>i.shop_id===shopId&&i.sku.toLowerCase()===sku.toLowerCase()&&i.id!==itemId))fail('This SKU already exists in this shop, including archived items.');
+ if(item){Object.assign(item,{name,sku,category,price:Number(price),minimum_stock:minimum});save(db);return {ok:true}}
+ const quantity=Number(body.quantity);if(!whole(body.quantity)||quantity<0||quantity>1000000)fail('Opening stock must be a whole number between 0 and 1,000,000.');
+ const id=Math.max(0,...db.items.map(i=>i.id))+1;db.items.push({id,shop_id:shopId,name,sku,category,price:Number(price),minimum_stock:minimum,quantity,archived:0});event(id,quantity,'Opening stock');save(db);return {id};
+ }
  if(body&&user.role!=='admin')fail('Only the admin can make this change.');
  if(path==='shops'){
  if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||user.shopId===s.id).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id).length}))};
