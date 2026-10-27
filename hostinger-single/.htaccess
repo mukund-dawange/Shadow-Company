@@ -1,8 +1,0 @@
-Options -Indexes
-DirectoryIndex index.php
-<FilesMatch "^(config.*\.php|bootstrap\.php|database\.sql|.*\.log)$">
-    Require all denied
-</FilesMatch>
-<FilesMatch "^\.">
-    Require all denied
-</FilesMatch>

@@ -1,10 +1,8 @@
 .runtime/
 private/
-hostinger-single/config.php
 .env
 .env.*
-!.env.example
-*.log
-*.zip
+config.php
 *.sqlite*
+*.log
 node_modules/
