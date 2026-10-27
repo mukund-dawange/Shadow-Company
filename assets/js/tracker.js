@@ -6,9 +6,18 @@ function shopURL(id,tab='inventory'){const url=new URL(window.shadowDemo?'shop.h
 function writeShopLink(id,tab){const url=new URL(location.href);url.hash=`shop/${id}/${tab}`;history.pushState(null,'',url.href);}
 async function followShopLink(){
  const match=/^#shop\/(\d+)\/(overview|inventory|stock|sales|products|staff|account)$/.exec(location.hash);
- if(!match){if(!location.hash){selected=null;section='shops';render();return;}toast('This shop link is not valid.');selected=null;section='shops';render();return;}
- try{if(isShopPage()&&Number(match[1])!==entryShopId())throw Error('This page belongs to a different shop. Use that shop’s own login link.');const next=await loadShop(match[1]);selected=next;section='shops';shopTab=match[2];resetInventoryFilters();reportData=null;reportError='';if(['sales','products'].includes(shopTab))await fetchReport();render();}
- catch(e){selected=null;section='shops';render();toast(e.message);}
+ const shopOnly=user.role!=='admin';
+ if(!match&&!shopOnly){selected=null;section='shops';render();if(location.hash)toast('This shop link is not valid.');return;}
+ try{
+  const ownId=shopOnly?entryShopId():null;
+  if(shopOnly&&!ownId)throw Error('Open your assigned shop login link.');
+  const valid=match&&(!shopOnly||Number(match[1])===ownId);
+  const id=shopOnly?ownId:Number(match[1]),tab=valid?match[2]:'overview';
+  const notice=shopOnly&&!valid&&location.hash?'This login can only open your assigned shop.':'';
+  const next=await loadShop(id);selected=next;section='shops';shopTab=tab;resetInventoryFilters();reportData=null;reportError='';
+  if(shopOnly&&!valid){const url=new URL(location.href);url.hash=`shop/${id}/${tab}`;history.replaceState(null,'',url.href);}
+  if(['sales','products'].includes(shopTab))await fetchReport();render();if(notice)toast(notice);
+ }catch(e){selected=null;reportData=null;section='shops';render();toast(e.message);}
 }
 async function setShopTab(tab){if(!shopTabs.has(tab))return;shopTab=tab;writeShopLink(selected.shop.id,tab);if(['sales','products'].includes(tab)){reportData=null;await fetchReport();}render();}
 async function fetchReport(){

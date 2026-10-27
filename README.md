@@ -11,6 +11,8 @@ Shop IDs accept 3–60 letters, numbers, dots, underscores and hyphens. Password
 
 Previously shared links to index.html#shop/<id>/... now open the admin entry. Copy a new shop login link for staff. Invalid shop links show an error instead of the admin page.
 
+Shop and staff accounts see only their own shop menu. The workspace shop list and global Team directory are admin-only. Empty, invalid or other-shop hash links return shop users to their assigned shop overview.
+
 ## Inventory Tracker
 Each shop has a unique login link such as `shop.html?shop=1#shop/1/inventory`, plus a scrollable left menu for Overview, Items, Stock updates, Sales report, Product sales, Team and My account.
 
