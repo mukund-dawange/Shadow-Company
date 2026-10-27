@@ -2,12 +2,12 @@ let reportData=null,reportError='',reportBusy=false;
 const businessToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 let reportTo=businessToday(),reportFrom=reportTo.slice(0,8)+'01';
 const shopTabs=new Set(['overview','inventory','stock','sales','products','staff','account']);
-function shopURL(id,tab='inventory'){const url=new URL(location.href);url.search='';url.hash=`shop/${id}/${tab}`;return url.href;}
-function writeShopLink(id,tab){history.pushState(null,'',shopURL(id,tab));}
+function shopURL(id,tab='inventory'){const url=new URL(window.shadowDemo?'shop.html':'shop.php',location.href);url.search='?shop='+id;url.hash=`shop/${id}/${tab}`;return url.href;}
+function writeShopLink(id,tab){const url=new URL(location.href);url.hash=`shop/${id}/${tab}`;history.pushState(null,'',url.href);}
 async function followShopLink(){
  const match=/^#shop\/(\d+)\/(overview|inventory|stock|sales|products|staff|account)$/.exec(location.hash);
  if(!match){if(!location.hash){selected=null;section='shops';render();return;}toast('This shop link is not valid.');selected=null;section='shops';render();return;}
- try{const next=await loadShop(match[1]);selected=next;section='shops';shopTab=match[2];resetInventoryFilters();reportData=null;reportError='';if(['sales','products'].includes(shopTab))await fetchReport();render();}
+ try{if(isShopPage()&&Number(match[1])!==entryShopId())throw Error('This page belongs to a different shop. Use that shop’s own login link.');const next=await loadShop(match[1]);selected=next;section='shops';shopTab=match[2];resetInventoryFilters();reportData=null;reportError='';if(['sales','products'].includes(shopTab))await fetchReport();render();}
  catch(e){selected=null;section='shops';render();toast(e.message);}
 }
 async function setShopTab(tab){if(!shopTabs.has(tab))return;shopTab=tab;writeShopLink(selected.shop.id,tab);if(['sales','products'].includes(tab)){reportData=null;await fetchReport();}render();}
@@ -32,7 +32,7 @@ function saleDialog(){
  d.querySelector('form').onsubmit=async e=>{e.preventDefault();const submit=d.querySelector('[type=submit]');submit.disabled=true;try{const values=Object.fromEntries(new FormData(e.target));await api(`shops/${selected.shop.id}/sales`,{...values,request_key:key});d.close();selected=await loadShop(selected.shop.id);reportFrom=values.sale_date;reportTo=values.sale_date;await setShopTab('sales');toast('Sale recorded and stock updated.');}catch(err){if(d.isConnected){d.querySelector('.error').textContent=err.message;submit.disabled=false;}else toast('Sale saved. Refresh the workspace to load updated data.');}};
 }
 function bindTracker(){
- document.querySelectorAll('[data-copy-shop]').forEach(b=>b.onclick=async()=>{const url=shopURL(b.dataset.copyShop);try{await navigator.clipboard.writeText(url);toast('Shop workspace link copied.');}catch{const d=document.createElement('dialog');d.innerHTML=`<h2>Shop workspace link</h2><p>Copy this link. Login and assigned-shop access are required.</p><input class="share-link" aria-label="Shop workspace link" readonly value="${esc(url)}"><button class="secondary">Close</button>`;document.body.append(d);d.showModal();d.querySelector('input').select();d.querySelector('button').onclick=()=>d.close();d.onclose=()=>d.remove();}});
+ document.querySelectorAll('[data-copy-shop]').forEach(b=>b.onclick=async()=>{const url=shopURL(b.dataset.copyShop);try{await navigator.clipboard.writeText(url);toast('Shop login link copied.');}catch{const d=document.createElement('dialog');d.innerHTML=`<h2>Shop login link</h2><p>Copy this link. This separate login page accepts only accounts assigned to this shop.</p><input class="share-link" aria-label="Shop login link" readonly value="${esc(url)}"><button class="secondary">Close</button>`;document.body.append(d);d.showModal();d.querySelector('input').select();d.querySelector('button').onclick=()=>d.close();d.onclose=()=>d.remove();}});
  const sale=document.querySelector('#record-sale');if(sale)sale.onclick=()=>saleDialog();
  const form=document.querySelector('#report-filters');if(form)form.onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(form));if(values.from>values.to){toast('Start date must be on or before end date.');return;}reportFrom=values.from;reportTo=values.to;reportData=null;await fetchReport();render();};
  for(const id of ['report-today','report-month']){const b=document.getElementById(id);if(b)b.onclick=async()=>{reportTo=businessToday();reportFrom=id==='report-today'?reportTo:reportTo.slice(0,8)+'01';reportData=null;await fetchReport();render();};}

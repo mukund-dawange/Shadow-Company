@@ -26,12 +26,17 @@ async function read(){
 {id:3,shop_id:2,name:'Canvas Tote',sku:'BAG-001',category:'Accessories',price:250,quantity:12,minimum_stock:3,archived:0}
 ],events:[],sales:[]};save(db);return db;
 }
-async function request(path,body){
- const db=await read(),user=db.users.find(u=>u.id===Number(sessionStorage.getItem(SESSION)));
- if(path==='session')return {configured:true,user:user?publicUser(user):null};
- if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.identifier??body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Login ID or password is incorrect.');if(Object.hasOwn(body,'shop_id')){const shopId=Number(body.shop_id);if(!Number.isSafeInteger(shopId)||shopId<1||!db.shops.some(s=>s.id===shopId))fail('This shop login link is not valid.');if(account.role!=='admin'&&account.shopId!==shopId)fail('This account is not assigned to this shop. Use your own shop login link.');}sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
+async function request(path,body,scopeShop=null){
+ const db=await read();let loginShop=null;
+ if(scopeShop!==null){if(!Number.isSafeInteger(scopeShop)||scopeShop<1)fail('This shop login link is not valid.');loginShop=db.shops.find(s=>s.id===scopeShop);if(!loginShop)fail('This shop login link is not valid.');}
+ const sessionKey=SESSION+(scopeShop===null?'-admin':'-shop-'+scopeShop);
+ let user=db.users.find(u=>u.id===Number(sessionStorage.getItem(sessionKey)));
+ if(user&&(scopeShop===null?user.role!=='admin':user.role==='admin'||user.shopId!==scopeShop)){sessionStorage.removeItem(sessionKey);user=null;}
+ if(path==='session')return {configured:true,user:user?publicUser(user):null,shop:loginShop?{id:loginShop.id,name:loginShop.name}:null};
+ if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.identifier??body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Login ID or password is incorrect.');if(scopeShop!==null){if(account.role==='admin'||account.shopId!==scopeShop)fail('This account cannot sign in to this shop. Use your own login page.');}else if(account.role!=='admin')fail('This page is for administrators. Open your shop login link.');sessionStorage.setItem(sessionKey,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
- if(path==='logout'){sessionStorage.removeItem(SESSION);return {ok:true}}
+ const scopedRoute=/^shops\/(\d+)(?:\/|$)/.exec(path);if(scopeShop!==null&&scopedRoute&&Number(scopedRoute[1])!==scopeShop)fail('This session belongs to another shop.');
+ if(path==='logout'){sessionStorage.removeItem(sessionKey);return {ok:true}}
  const salesRoute=/^shops\/(\d+)\/(sales|reports\/([0-9-]+)\/([0-9-]+))$/.exec(path);
  if(salesRoute){
  const shopId=Number(salesRoute[1]);if(!db.shops.some(s=>s.id===shopId))fail('Shop not found.');
@@ -88,7 +93,7 @@ async function request(path,body){
  }
  if(body&&user.role!=='admin')fail('Only the admin can make this change.');
  if(path==='shops'){
- if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||user.shopId===s.id).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id&&u.account_type!=='shop').length}))};
+ if(!body)return {shops:db.shops.filter(s=>user.role==='admin'||(user.shopId===s.id&&s.id===scopeShop)).map(s=>({...s,staffCount:db.users.filter(u=>u.shopId===s.id&&u.account_type!=='shop').length}))};
  const name=text(body.name,80);if(!name)fail('Shop name is required.');const login=shopCredentials(body);if(db.users.some(u=>u.email===login.id))fail('This login ID is already in use.');const passwordHash=await hash(login.password);const id=Math.max(0,...db.shops.map(s=>s.id))+1;db.shops.push({id,name,location:text(body.location,200),description:text(body.description,1000)});db.users.push({id:Math.max(0,...db.users.map(u=>u.id))+1,name:(name+' shop').slice(0,80),email:login.id,passwordHash,role:'staff',account_type:'shop',shopId:id});save(db);return {id};
  }
  const loginRoute=/^shops\/(\d+)\/login$/.exec(path);
@@ -101,8 +106,8 @@ async function request(path,body){
  db.users.push({id:Math.max(...db.users.map(u=>u.id))+1,name,email,passwordHash:await hash(password),role:'staff',shopId:id});save(db);return {ok:true};}
  }fail('Not found.');
 }
-function reset(){localStorage.removeItem(KEY);sessionStorage.removeItem(SESSION)}
+function reset(){localStorage.removeItem(KEY);for(let i=sessionStorage.length-1;i>=0;i--){const key=sessionStorage.key(i);if(key&&key.startsWith(SESSION))sessionStorage.removeItem(key);}}
 let pending=Promise.resolve();
-window.shadowDemo={request:(path,body)=>{const result=pending.then(()=>request(path,body));pending=result.catch(()=>{});return result;},reset};
+window.shadowDemo={request:(path,body,scopeShop=null)=>{const result=pending.then(()=>request(path,body,scopeShop));pending=result.catch(()=>{});return result;},reset};
 document.addEventListener('DOMContentLoaded',()=>document.querySelector('#reset-demo')?.addEventListener('click',()=>{if(confirm('Reset this browser’s demo shops and staff accounts?')){reset();location.reload()}}));
 })();
