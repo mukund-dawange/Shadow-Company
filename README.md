@@ -18,4 +18,6 @@ The separate **Shadow work space** folder contains PHP/MySQL production files. K
 
 Current scope: shop inventory, item creation/editing/archiving, low-stock alerts, stock adjustments with history, dedicated staff sign-in and staff dashboard, admin/shop sign-in, shop registration, search, shop details, staff accounts, team directory, sign-out. Attendance, salary and POS remain future modules.
 
-Dedicated staff login: append `?portal=staff` to your site URL. Admins manage item details; assigned staff can adjust stock with a reason and view its history. Browser data from the earlier demo is upgraded without clearing shops or accounts.
+Dedicated staff login: append `?portal=staff` to your site URL. Admins can add, edit and archive items; assigned staff can add new items, adjust stock with a reason and view history. Browser data from the earlier demo is upgraded without clearing shops or accounts.
+
+Inventory now includes a visible Add item action on the shop header, automatic SKU generation, category/status filters, sorting, stock summaries and a receive/remove quantity preview. Creating an item clears filters so the saved item is visible. Selling-price stock value is not inventory cost or profit.

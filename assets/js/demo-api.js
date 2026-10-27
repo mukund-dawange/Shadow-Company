@@ -49,7 +49,7 @@ async function request(path,body){
  const quantity=Number(item.quantity)+delta;if(quantity<0||quantity>1000000)fail('Stock must remain between 0 and 1,000,000 units.');
  item.quantity=quantity;event(itemId,delta,reason);save(db);return {ok:true};
  }
- if(user.role!=='admin')fail('Only the admin can manage item details.');
+ if(user.role!=='admin'&&(itemId||action))fail('Only the admin can edit or archive existing items.');
  if(action==='archive'){item.archived=1;save(db);return {ok:true}}
  if(action)fail('Not found.');
  const name=text(body.name,120),sku=text(body.sku,60).toUpperCase(),category=text(body.category,80),price=String(body.price??''),minimum=Number(body.minimum_stock);
