@@ -9,7 +9,7 @@ const text=(v,n)=>String(v??'').trim().slice(0,n);
 const save=db=>localStorage.setItem(KEY,JSON.stringify(db));
 async function read(){
  const raw=localStorage.getItem(KEY);
- if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();if(!db.items){db.items=[];db.events=[];save(db)}return db}catch{fail('Demo data could not be read. Use Reset demo to start again.')}}
+ if(raw){try{const db=JSON.parse(raw);if(db.version!==1||!Array.isArray(db.users)||!Array.isArray(db.shops))throw Error();if(!db.items){db.items=[];db.events=[];}if(!db.sales)db.sales=[];save(db);return db}catch{fail('Demo data could not be read. Use Reset demo to start again.')}}
  const passwordHash=await hash('Demo-access-123');
  const db={version:1,users:[
  {id:1,name:'Demo Administrator',email:'admin@shadow.demo',role:'admin',passwordHash},
@@ -23,7 +23,7 @@ async function read(){
 {id:1,shop_id:1,name:'Classic Notebook',sku:'NOTE-001',category:'Stationery',price:85,quantity:24,minimum_stock:5,archived:0},
 {id:2,shop_id:1,name:'Blue Ballpoint Pen',sku:'PEN-001',category:'Stationery',price:15,quantity:3,minimum_stock:10,archived:0},
 {id:3,shop_id:2,name:'Canvas Tote',sku:'BAG-001',category:'Accessories',price:250,quantity:12,minimum_stock:3,archived:0}
-],events:[]};save(db);return db;
+],events:[],sales:[]};save(db);return db;
 }
 async function request(path,body){
  const db=await read(),user=db.users.find(u=>u.id===Number(sessionStorage.getItem(SESSION)));
@@ -31,6 +31,32 @@ async function request(path,body){
  if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Email or password is incorrect.');if(body.portal&&account.role!==body.portal)fail('Choose the correct portal for your account.');sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
  if(path==='logout'){sessionStorage.removeItem(SESSION);return {ok:true}}
+ const salesRoute=/^shops\/(\d+)\/(sales|reports\/([0-9-]+)\/([0-9-]+))$/.exec(path);
+ if(salesRoute){
+ const shopId=Number(salesRoute[1]);if(!db.shops.some(s=>s.id===shopId))fail('Shop not found.');
+ if(user.role!=='admin'&&user.shopId!==shopId)fail('You do not have access to this shop.');
+ const validDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&v>='2000-01-01'&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
+ if(salesRoute[2]==='sales'&&body){
+ const itemId=Number(body.item_id),qty=Number(body.quantity),date=body.sale_date,key=body.request_key;
+ const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ if(!Number.isSafeInteger(itemId)||itemId<1||!/^\d+$/.test(String(body.quantity))||!Number.isSafeInteger(qty)||qty<1||qty>1000000||!validDate(date)||date>today||typeof key!=='string'||!/^[a-f0-9-]{36}$/.test(key))fail('Choose an item, a positive whole quantity and a valid sale date (not in the future).');
+ const existing=db.sales.find(s=>s.shop_id===shopId&&s.request_key===key);if(existing)return {id:existing.id,duplicate:true};
+ const item=db.items.find(i=>i.id===itemId&&i.shop_id===shopId&&!i.archived);if(!item)fail('Item not found in this shop.');
+ if(Number(item.quantity)<qty)fail('Not enough stock for this sale.');
+ const cents=Math.round(Number(item.price)*100)*qty;if(cents>900000000000)fail('Sale total exceeds the supported limit of ₹9,000,000,000. Split it into smaller entries.');
+ const id=Math.max(0,...db.sales.map(s=>s.id))+1;
+ db.sales.push({id,shop_id:shopId,item_id:itemId,user_id:user.id,request_key:key,item_name:item.name,sku:item.sku,quantity:qty,unit_price:Number(item.price).toFixed(2),total:(cents/100).toFixed(2),sale_date:date,note:text(body.note,200),actor:user.name});
+ item.quantity=Number(item.quantity)-qty;db.events.push({item_id:itemId,delta:-qty,reason:'Sale #'+id,actor:user.name,created_at:new Date().toISOString()});save(db);return {id};
+ }
+ if(!body&&salesRoute[3]){
+ const from=salesRoute[3],to=salesRoute[4];if(!validDate(from)||!validDate(to)||from>to)fail('Choose a valid start and end date.');
+ const sales=db.sales.filter(s=>s.shop_id===shopId&&s.sale_date>=from&&s.sale_date<=to).sort((a,b)=>b.sale_date.localeCompare(a.sale_date)||b.id-a.id);
+ const byProduct=new Map();let units=0,totalCents=0;
+ for(const sale of sales){units+=Number(sale.quantity);totalCents+=Math.round(Number(sale.total)*100);const item=db.items.find(i=>i.id===sale.item_id);const p=byProduct.get(sale.item_id)||{item_id:sale.item_id,name:item?.name||sale.item_name,sku:item?.sku||sale.sku,sale_count:0,units:0,cents:0};p.sale_count++;p.units+=Number(sale.quantity);p.cents+=Math.round(Number(sale.total)*100);byProduct.set(sale.item_id,p);}
+ const products=[...byProduct.values()].sort((a,b)=>b.cents-a.cents||a.item_id-b.item_id).map(({cents,...p})=>({...p,revenue:(cents/100).toFixed(2)}));
+ return {summary:{sale_count:sales.length,units,revenue:(totalCents/100).toFixed(2)},sales:sales.slice(0,500),products,from,to,limit:500};
+ }fail('Method not allowed.');
+ }
  const inventory=/^shops\/(\d+)\/items(?:\/(\d+)(?:\/(stock|archive|history))?)?$/.exec(path);
  if(inventory){
  const shopId=Number(inventory[1]),itemId=inventory[2]?Number(inventory[2]):null,action=inventory[3]||'';
@@ -73,6 +99,7 @@ async function request(path,body){
  }fail('Not found.');
 }
 function reset(){localStorage.removeItem(KEY);sessionStorage.removeItem(SESSION)}
-window.shadowDemo={request,reset};
+let pending=Promise.resolve();
+window.shadowDemo={request:(path,body)=>{const result=pending.then(()=>request(path,body));pending=result.catch(()=>{});return result;},reset};
 document.addEventListener('DOMContentLoaded',()=>document.querySelector('#reset-demo')?.addEventListener('click',()=>{if(confirm('Reset this browser’s demo shops and staff accounts?')){reset();location.reload()}}));
 })();
