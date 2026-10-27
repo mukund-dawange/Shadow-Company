@@ -28,7 +28,7 @@ async function read(){
 async function request(path,body){
  const db=await read(),user=db.users.find(u=>u.id===Number(sessionStorage.getItem(SESSION)));
  if(path==='session')return {configured:true,user:user?publicUser(user):null};
- if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Email or password is incorrect.');if(body.portal&&account.role!==body.portal)fail('Choose the correct portal for your account.');sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
+ if(path==='login'&&body){const account=db.users.find(u=>u.email===text(body.email,254).toLowerCase());if(!account||account.passwordHash!==await hash(String(body.password||'')))fail('Email or password is incorrect.');if(body.portal&&account.role!==body.portal)fail('Choose the correct portal for your account.');if(Object.hasOwn(body,'shop_id')){const shopId=Number(body.shop_id);if(!Number.isSafeInteger(shopId)||shopId<1||!db.shops.some(s=>s.id===shopId))fail('This shop login link is not valid.');if(account.role!=='admin'&&account.shopId!==shopId)fail('This account is not assigned to this shop. Use your own shop login link.');}sessionStorage.setItem(SESSION,String(account.id));return {user:publicUser(account)}}
  if(!user)fail('Please sign in.');
  if(path==='logout'){sessionStorage.removeItem(SESSION);return {ok:true}}
  const salesRoute=/^shops\/(\d+)\/(sales|reports\/([0-9-]+)\/([0-9-]+))$/.exec(path);
