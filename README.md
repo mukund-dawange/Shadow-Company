@@ -1,35 +1,39 @@
 # Shadow Workspace — browser demo
 
-HTML, CSS and JavaScript only. No PHP or SQL runs in this repository. The separate Shadow work space folder contains the Hostinger PHP/MySQL application.
+HTML, CSS and JavaScript only. This repository is the GitHub Pages demo. The separate Shadow work space folder contains the PHP/MySQL version for Hostinger.
 
-## Admin shop websites and tools
-The admin directory shows a website card for every shop. Click its preview to open that shop website in a new tab. **Manage** opens its inventory, reports and staff inside the admin panel. **Copy link** copies the shop-specific login URL.
+## Three panels
 
-**Customise login** opens an editor with a live preview. Edit the page name, headline, welcome message, one of six accent colours, and light/dark appearance. Changes apply after saving and update the card preview too. The shop name, login credentials and admin login page stay unchanged. Shop/staff accounts cannot use the editor.
+| Panel | Entry | Responsibilities |
+| --- | --- | --- |
+| DEV | `index.html` or `dev.html` | Create offices and owner logins, manage all offices, suspend/reactivate access, reset owner passwords and generate demo data. |
+| ADMIN | `admin.html?office=1` | One owner per office. Manage that office's staff, products, stock, sales, reports, profile and login design. Cannot create offices. |
+| OFFICE | `office.html?office=1` | Assigned staff. Add products, update stock, record sales, view reports/team and manage their own password. |
 
-**Demo data** is an admin-only tool that creates one labelled sample shop with five products, stock history and three sales. Repeating the action opens the same sample shop; existing shops and records are never reset. It creates no login accounts: use **Set shop login** when you want to test that sample shop's website. The old public Reset demo button has been removed.
+Replace `1` with the office ID. The DEV directory shows a website card for each office. Click its preview to open the owner ADMIN login; choose **Manage** to work in that office from DEV. **Admin link** and **Office link** provide the separate owner and staff URLs.
 
-## Interface
-The minimal interface uses warm white surfaces, charcoal text, muted green accents and inline line icons. Login pages, admin and shop navigation, inventory, reports, account pages and dialogs share the same design. It adapts to narrow screens; data tables scroll within their own containers. There are no external fonts or icon dependencies.
+Existing browser data is preserved. The previous main administrator becomes DEV, each shop becomes an office, and its shop account becomes the office ADMIN. Existing staff, credentials, inventory, stock history, sales and branding are kept. Older sessions are signed out once, so sign in again with the same credentials. Legacy `shop.html?shop=1` links now open the owner ADMIN page, with a link to the staff sign-in screen.
 
-## Sign-in and shops
-The main index.html page is for administrators only. Each shop has a separate shop.html?shop=<id> login page showing its own name and its dedicated sign-in screen. Only its shop account and assigned staff can sign in there; admin accounts and accounts from other shops are rejected. Existing credentials remain unchanged. No passwords or quick-fill credentials appear on either page.
+## Office controls
 
-The administrator must enter a unique shop login ID and password when creating a shop. Its login link becomes available automatically: open the shop and select **Copy shop login link**. Admin and individual shop sessions are separate, so signing out of one leaves the others signed in. Existing shops without credentials have a **Set shop login** action. Shop credentials open only that shop. Staff accounts remain separate. Only the administrator can create shops/accounts and edit/archive item details. Password reset is not included yet.
+- Office creation is DEV-only and requires a unique owner login ID and password. Older offices without credentials have **Set owner login**.
+- Owners create staff with email/password, disable/re-enable their access, and reset staff passwords. Owner password resets and office suspension are DEV-only.
+- **My account** lets each user change their password with the current password. Other sessions for the account are revoked. Manager resets revoke all sessions for the target account.
+- **Office settings** includes name, location, description, owner login information and both portal links.
+- **Customise login** edits the page name, headline, welcome message, accent colour and light/dark design with a live preview. The design applies to that office's ADMIN and OFFICE login pages. DEV retains its fixed design.
+- **Activity log** gives DEV and the owner the latest 100 events for the office. It includes product, stock, sale, profile and access changes, without logging credentials.
+- **Demo data** is visible only in DEV. It creates one separate labelled sample office with five products, stock history and three sales. Repeating the action opens the same sample office and leaves other offices untouched. Set its owner login separately if required.
 
-Shop IDs accept 3–60 letters, numbers, dots, underscores and hyphens. Passwords use 10–72 bytes. Passwords are not shown after saving. Shop accounts are excluded from staff counts.
+Accounts are restricted to their assigned panel and office. DEV, owners and staff have separate sessions. Invalid or foreign office links cannot reveal other offices through the demo API. Owners cannot create offices or access platform controls; staff cannot manage users, branding, office settings or activity logs. DEV and owners may edit/archive products; staff may add products and update stock.
 
-Previously shared links to index.html#shop/<id>/... now open the admin entry. Copy a new shop login link for staff. Invalid shop links show an error instead of the admin page.
+## Inventory and reports
 
-Shop and staff accounts see only their own shop menu. The workspace shop list and global Team directory are admin-only. Empty, invalid or other-shop hash links return shop users to their assigned shop overview.
-
-## Inventory Tracker
-Each shop has a unique login link such as `shop.html?shop=1#shop/1/inventory`, plus a scrollable left menu for Overview, Items, Stock updates, Sales report, Product sales, Team and My account.
-
-Add items, generate SKU codes, filter/sort inventory, record stock adjustments, inspect history, and record single-product sales that reduce stock. Date-filtered reports show units and revenue by product. Sale prices are preserved when catalog prices change. Sale details are limited to the latest 500 entries; totals include all matching entries. Default dates use IST. Revenue is not profit. Returns, tax invoices, discounts, cancellations and multi-item receipts are future work.
+Whole-unit inventory supports SKU generation, search/filter/sort, low-stock alerts, adjustments and history. Recording a single-product sale reduces stock and keeps the original sale price. Reports show date-filtered units and revenue by product, including archived products. Sale lists show up to 500 records; totals include all matching sales. Default dates follow India time. Revenue is not profit. Returns, cancellations, tax invoices, discounts and multi-item receipts are not included yet.
 
 ## Demo limitations
-Data is stored only in this browser. A link does not share custom demo shop records with another browser. This is simulated authentication; source code and local data can be inspected and changed. Use sample data only. Hiding credentials from the login screen does not turn a public static website into a secure backend. Hostinger PHP/MySQL is the real shared-data version.
 
-## Publishing
-Review changes in GitHub Desktop, commit, then push. GitHub Pages should publish main / root with index.html as its entry point. All asset paths are relative. No build or ZIP is needed.
+Data is saved only in this browser. Sharing a link does not transfer custom demo offices to another browser or to Hostinger. This is simulated authentication: source code and local browser records can be inspected or changed. Use sample data only. The PHP/MySQL application provides the real server-enforced permissions and shared database.
+
+## Publish and preview
+
+Review the direct file changes in GitHub Desktop, commit, then push. Publish GitHub Pages from main / root, with `index.html` as the entry. All assets use relative paths; no build or ZIP is required. For local testing, serve this folder over HTTP rather than opening HTML through file://.
